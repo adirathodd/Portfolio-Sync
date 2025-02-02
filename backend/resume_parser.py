@@ -2,7 +2,6 @@ from pdfminer.high_level import extract_text
 from langchain_ollama import OllamaLLM
 import json
 from utils import *
-import multiprocessing
 
 class ResumeParser:
     def __init__(self):
