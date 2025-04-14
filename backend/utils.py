@@ -62,7 +62,7 @@ Your goals:
 1. Carefully examine the entirety of the provided text.
 2. Extract all relevant information and fill in the JSON template exactly as provided.
 3. For any field (like 'description'), summarize if needed, but do not copy large text verbatim.
-4. For any date fields, provide a response in MM/DD/YYYY or MM/YYYY format
+4. For any date fields, provide a response in MM/DD/YYYY or MM/YYYY format. If a date is field is supposed to marked as present - use today's data for reference.
 5. Make sure to use double quotes in your JSON response not and NOT single quotes.
 6. IMPORTANT: Respond ONLY with a valid JSON string with no extra text, explanations, or markdown formatting (do not include any code fences or additional commentary).
 
