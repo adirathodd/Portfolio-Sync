@@ -1,11 +1,45 @@
 from pdfminer.high_level import extract_text
-from langchain_ollama import OllamaLLM
+from openai import AzureOpenAI
 import json
 from utils import *
+from dotenv import load_dotenv
+import os
+import concurrent.futures
+
+load_dotenv()
 
 class ResumeParser:
     def __init__(self):
-        self.llm = OllamaLLM(model="llama3")
+        endpoint = "https://synced-ai.openai.azure.com/"
+        subscription_key = os.getenv("AZURE_OPENAI_KEY")
+        api_version = "2024-12-01-preview"
+
+        self.client = AzureOpenAI(
+            api_version=api_version,
+            azure_endpoint=endpoint,
+            api_key=subscription_key,
+        )
+    
+    def get_response(self, prompt):
+        response = self.client.chat.completions.create(
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a highly intelligent assistant. Your response MUST be a single valid JSON string with no additional text, commentary, or formatting. Use the provided JSON template exactly as given.",
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        max_tokens=4096,
+        temperature=1.0,
+        top_p=1.0,
+        model="gpt-4o"
+    )
+        res = str(response.choices[0].message.content).strip("`json")
+        return res
+
 
     def parse(self, filepath):
         # Extract all text from the resume PDF
@@ -14,25 +48,23 @@ class ResumeParser:
         except Exception as e:
             raise ValueError(f"Error extracting text from resume: {e}")
 
-        max_retries = 3
+        max_retries = 5
         parsed_resume = {}
 
-        # Parse each section seperately for improved accuracy
-        for section in sections:
+        # Process each section in parallel using ThreadPoolExecutor
+        def process_section(section):
             retries = 0
             success = False
-
-            # Given a maximum of 3 attempts
             while retries < max_retries and not success:
                 try:
                     # 1. Extract the specified section text from the resume
-                    extracted_text = self.llm.invoke(self.split_resume_prompt(resumeText, section))
+                    extracted_text = self.get_response(split_resume_prompt(resumeText, section))
 
                     # 2. Parse the extracted section according to JSON template
-                    response = self.llm.invoke(self.parse_section_prompt(extracted_text, sections[section]))
-                    parsed_resume[section] = json.loads(response)
+                    response = self.get_response(parse_section_prompt(extracted_text, sections[section]))
+                    result = json.loads(response)
                     success = True
-
+                    return section, result
                 except json.JSONDecodeError as e:
                     retries += 1
                     print(f"JSON parsing error for section {section}. Retrying {retries}/{max_retries}...")
@@ -42,54 +74,13 @@ class ResumeParser:
 
             if not success:
                 print(f"Failed to parse section - {section} - after {max_retries} retries. Setting it to an empty dictionary.")
-                parsed_resume[section] = {}
+                return section, {}
 
-            print(f"Parsing {section} completed!")
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future_to_section = {executor.submit(process_section, section): section for section in sections}
+            for future in concurrent.futures.as_completed(future_to_section):
+                sec, result = future.result()
+                parsed_resume[sec] = result
+                print(f"Parsing {sec} completed!")
 
-        return parsed_resume
-
-    def parse_section_prompt(self, resume_text, template):
-        prompt = f'''
-You are a highly intelligent assistant and are tasked to extract important information from a given text and fill in the given JSON template accordingly.
-
-Your goals:
-1. Carefully examine the entirety of the given text.
-2. Extract all relevant information and fill in the JSON template accordingly.
-3. For the 'description' field, summarize the experience or project. Don't just copy from the resume text.
-4. Respond ONLY with valid JSON that matches the provided template. No additional text, summaries, or comments.
-
-If any information is missing from the text, leave the corresponding fields blank.
-
-Text -
-{resume_text}
-
-JSON Template -
-{template}
-
-Respond only with valid JSON, strictly following the format of the provided template.
-'''
-
-        return prompt
-
-    def split_resume_prompt(self, resumeText, section):
-        prompt = f'''
-You are a highly intelligent assistant and are tasked to extract a specific section from an individual's resume.
-
-You are given the following things -
-    1. Resume text
-    2. Section Name
-
-These are your Goals -
-    1. Carefully examine the entirety of the given resume text.
-    2. Retrieve only the section from the resume text indicated from the given section name.
-
-Resume Text -
-{resumeText}
-
-Section Name -
-{section}
-
-Respond only with the text from the resume with no additional text or summary.
-        '''
-
-        return prompt
+        return json.dumps(parsed_resume, indent=2)

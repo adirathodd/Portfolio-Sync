@@ -1,6 +1,6 @@
 from resume_parser import ResumeParser
 
-filepath = "../resumes/Resume-1.pdf"
+filepath = "/Users/adirathodd/Documents/GitHub/Portfolio-Sync/resumes/Resume-2.pdf"
 engine = ResumeParser()
 summary = engine.parse(filepath)
 
