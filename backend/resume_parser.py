@@ -83,4 +83,4 @@ class ResumeParser:
                 parsed_resume[sec] = result
                 print(f"Parsing {sec} completed!")
 
-        return json.dumps(parsed_resume, indent=2)
+        return parsed_resume
