@@ -78,3 +78,9 @@ Respond with only the valid JSON string.
 '''
 
     return prompt
+
+users_req = set(["username", "email", "password", "first_name", "last_name"])
+users_opt = set(["middle_name"])
+
+files_req = set(["filename", "username", "file_ext", "filepath"])
+files_opt = set([])
